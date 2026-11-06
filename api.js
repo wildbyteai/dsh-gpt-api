@@ -1,9 +1,52 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, realpath, open, unlink } from 'node:fs/promises';
-import { resolve, join, sep } from 'node:path';
+import { resolve, join, sep, basename } from 'node:path';
+import { createHash } from 'node:crypto';
 
 const MAX_RESPONSE_BYTES = 80 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 30 * 1024 * 1024;
+
+// Explicit caller-selected local image files only; no recursive upload or remote fetch.
+export async function loadReferenceImages(paths, cwd, workspaceRoot, signal) {
+  signal?.throwIfAborted();
+  if (paths === undefined) return [];
+  if (!Array.isArray(paths) || paths.length > 10 || paths.some(p => typeof p !== 'string' || !p.trim())) {
+    throw new Error('reference_images 应为最多 10 个本地图片路径。');
+  }
+  if (paths.length === 0) return [];
+  const root = await realpath(workspaceRoot);
+  const prefix = root.endsWith(sep) ? root : root + sep;
+  const out = [];
+  for (const input of paths) {
+    signal?.throwIfAborted();
+    const path = await realpath(resolve(cwd, input));
+    if (path !== root && !path.startsWith(prefix)) throw new Error('参考图片须位于当前会话工作区内。');
+    const file = await open(path, 'r');
+    try {
+      const info = await file.stat();
+      if (!info.isFile() || info.size > MAX_IMAGE_BYTES) throw new Error('参考图片须为不超过 30 MiB 的普通文件。');
+      const chunks = [];
+      let length = 0;
+      for await (const chunk of file.createReadStream({ start: 0, end: MAX_IMAGE_BYTES, autoClose: false, signal })) {
+        length += chunk.length;
+        if (length > MAX_IMAGE_BYTES) throw new Error('参考图片超过 30 MiB 限制。');
+        chunks.push(chunk);
+      }
+      signal?.throwIfAborted();
+      const bytes = Buffer.concat(chunks);
+      const ext = imageType(bytes);
+      if (!ext) throw new Error('参考图片仅支持 PNG、JPEG 或 WebP。');
+      out.push({
+        bytes, name: basename(path),
+        mediaType: ext === 'jpg' ? 'image/jpeg' : 'image/' + ext,
+        sha256: createHash('sha256').update(bytes).digest('hex'),
+      });
+    } finally {
+      await file.close();
+    }
+  }
+  return out;
+}
 
 export function endpoint(baseURL, path) {
   const base = new URL(baseURL);
@@ -57,8 +100,8 @@ export class GPTClient {
     try {
       response = await fetch(url, {
         method: body === undefined ? 'GET' : 'POST',
-        headers: { Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json' },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        headers: { Authorization: `Bearer ${this.key}`, ...(body instanceof FormData ? {} : { 'Content-Type': 'application/json' }) },
+        ...(body === undefined ? {} : { body: body instanceof FormData ? body : JSON.stringify(body) }),
         redirect: 'error',
         signal: this.signal,
       });
@@ -100,7 +143,7 @@ export class GPTClient {
     return { model: data.model ?? model, text: text.slice(0, 100000), truncated: text.length > 100000, usage: data.usage ?? null, status: data.status ?? 'completed' };
   }
 
-  async image(args) {
+  async image(args, references = []) {
     const model = nonempty(args.model ?? this.config.imageModel, '生图模型');
     const n = args.n ?? 1;
     if (!Number.isInteger(n) || n < 1 || n > 4) throw new Error('n 应为 1–4 的整数。');
@@ -111,7 +154,13 @@ export class GPTClient {
     const size = args.size ?? 'auto';
     if (size !== 'auto' && !/^\d{2,5}x\d{2,5}$/.test(size)) throw new Error('size 应为 auto 或 WIDTHxHEIGHT。');
     const body = { model, prompt: nonempty(args.prompt, 'prompt'), n, size, quality, output_format: format };
-    const data = await this.request('images/generations', body);
+    let requestBody = body;
+    if (references.length) {
+      requestBody = new FormData();
+      for (const [key, value] of Object.entries(body)) requestBody.set(key, String(value));
+      for (const ref of references) requestBody.append('image[]', new Blob([ref.bytes], { type: ref.mediaType }), ref.name);
+    }
+    const data = await this.request(references.length ? 'images/edits' : 'images/generations', requestBody);
     if (!Array.isArray(data.data) || !data.data.length || data.data.length > 4) throw new Error('API 未返回有效图片数组。');
     const images = [];
     for (const item of data.data) {
@@ -133,7 +182,8 @@ export class GPTClient {
       if (!ext) throw new Error('返回内容不是 PNG、JPEG 或 WebP 图片。');
       images.push({ bytes, ext, revisedPrompt: item.revised_prompt ?? null });
     }
-    return { model, images, usage: data.usage ?? null };
+    return { model: data.model ?? model, images, usage: data.usage ?? null,
+      references: references.map(({ name, sha256 }) => ({ name, sha256 })) };
   }
 }
 
@@ -169,5 +219,5 @@ export async function saveImages(cwd, result, signal) {
     await Promise.all(files.map(file => unlink(file.path).catch(() => {})));
     throw error;
   }
-  return { model: result.model, files, usage: result.usage };
+  return { model: result.model, files, usage: result.usage, references: result.references ?? [] };
 }

@@ -1,7 +1,7 @@
 {
   "name": "dsh-gpt-api",
-  "version": "1.1.0",
-  "description": "GPT API：在对话中调用 GPT、生成图片，支持自定义 OpenAI 兼容接口。",
+  "version": "1.2.0",
+  "description": "GPT API：在对话中调用 GPT、文生图和参考图生图，支持自定义 OpenAI 兼容接口。",
   "type": "module",
   "main": "./index.js",
   "exports": {

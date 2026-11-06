@@ -53,6 +53,30 @@ dsh plugin --profile desktop add "github:wildbyteai/dsh-gpt-api"
 
 兼容 OpenAI 的服务可使用自己的接口地址，包含 `/v1` 等 API 前缀。远程接口使用 HTTPS，本机服务支持 HTTP。文本接口可选择 `responses` 或 `chat-completions`。
 
+## 参考图生图
+
+1.2.0 支持使用本地参考图生成或修改图片。例如在对话中说：
+
+```text
+用 GPT 生图，参考工作区里的 assets/reference.png，保留主体和构图，把背景换成海边。
+```
+
+工具调用示例：
+
+```js
+gpt_image({
+  prompt: "保留参考图的主体和构图，把背景换成海边",
+  reference_images: ["assets/reference.png"],
+  size: "1536x1024",
+  quality: "high"
+})
+```
+
+- 参考图须为当前会话工作区内的 PNG、JPEG 或 WebP 文件，最多 10 张，每张不超过 30 MiB。路径相对于当前对话工作目录解析，也支持工作区内的绝对路径。
+- 对话附件须先保存到工作区，再使用对应文件路径。
+- 有参考图时，图片文件内容通过 multipart 上传到 `/images/edits`；没有参考图时，仍使用 `/images/generations`。
+- 原图保持不变，生成结果另存到 `output/gpt-api/`。提供方和所选模型须支持参考图编辑接口。
+
 ## 对话工具
 
 | 工具 | 用途 |
@@ -65,7 +89,7 @@ dsh plugin --profile desktop add "github:wildbyteai/dsh-gpt-api"
 
 ```js
 gpt_call({ prompt, context, instructions, model, max_output_tokens })
-gpt_image({ prompt, model, size, quality, output_format, n })
+gpt_image({ prompt, reference_images, model, size, quality, output_format, n })
 gpt_models()
 ```
 
@@ -106,7 +130,7 @@ dsh plugin --profile desktop add "link:$(pwd)"
 node --test test/*.test.js
 ```
 
-29 项本地测试通过，覆盖文本接口、模型选择、原生 RPC、图片保存、密钥脱敏、取消请求和默认模型。测试使用本地模拟数据，不产生 API 生成费用；浏览器端完整验收尚未完成。
+41 项本地测试通过，覆盖文本接口、模型选择、原生 RPC、参考图文件上传、图片保存、大小与路径校验、密钥脱敏、取消请求和默认模型。测试使用本地模拟 API，不产生生成费用；真实参考图生成效果和浏览器端完整验收尚未验证。
 
 测试依赖版本为 DSH `0.2.1-rc.5`，要求 Node.js 22 或更高。依赖版本与安装兼容声明见 [package.json](<package.json>)。
 

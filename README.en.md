@@ -53,6 +53,30 @@ Manually saved model selections take precedence over the defaults.
 
 OpenAI-compatible providers can use their own base URL, including an API prefix such as `/v1`. Remote endpoints require HTTPS; local services can use HTTP. Text requests support `responses` and `chat-completions`.
 
+## Reference-guided image generation
+
+Version 1.2.0 supports generating or editing images using local references. For example:
+
+```text
+Use GPT API with assets/reference.png from the workspace. Keep the subject and composition, and replace the background with a beach.
+```
+
+Tool call example:
+
+```js
+gpt_image({
+  prompt: "Keep the reference subject and composition; replace the background with a beach",
+  reference_images: ["assets/reference.png"],
+  size: "1536x1024",
+  quality: "high"
+})
+```
+
+- References must be PNG, JPEG or WebP files within the conversation workspace: at most 10 files, each up to 30 MiB. Relative paths use the current conversation working directory; absolute paths within the workspace also work.
+- Save conversation attachments into the workspace before using their file paths.
+- With references, actual file bytes are uploaded as multipart files to `/images/edits`. Without references, requests still use `/images/generations`.
+- Original files remain unchanged. Results are saved separately under `output/gpt-api/`. The provider and selected model must support reference image editing.
+
 ## Conversation tools
 
 | Tool | Purpose |
@@ -65,7 +89,7 @@ Parameter interfaces:
 
 ```js
 gpt_call({ prompt, context, instructions, model, max_output_tokens })
-gpt_image({ prompt, model, size, quality, output_format, n })
+gpt_image({ prompt, reference_images, model, size, quality, output_format, n })
 gpt_models()
 ```
 
@@ -106,7 +130,7 @@ Keep the source directory for a link installation. Run tests in an environment w
 node --test test/*.test.js
 ```
 
-29 local tests pass, covering text APIs, model selection, native RPC, image saving, credential redaction, cancellation and default models. Tests use local fixtures and incur no API generation charges. Full browser end-to-end validation is still pending.
+41 local tests pass, covering text APIs, model selection, native RPC, reference file uploads, image saving, size and path checks, credential redaction, cancellation and default models. Tests use local mock APIs and incur no generation charges. Real reference-guided generation quality and full browser end-to-end validation have not been verified.
 
 Tests use DSH `0.2.1-rc.5` dependencies and require Node.js 22 or newer. Dependency versions and installation compatibility declarations are in [package.json](<package.json>).
 

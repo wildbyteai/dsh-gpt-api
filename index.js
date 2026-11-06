@@ -3,7 +3,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools';
 import { credentialRef } from '@deepseek-ai/dsh-credentials';
 import { realpath } from 'node:fs/promises';
 import { sep } from 'node:path';
-import { GPTClient, saveImages } from './api.js';
+import { GPTClient, saveImages, loadReferenceImages } from './api.js';
 import { createModelsRoute } from './models-route.js';
 
 export const name = 'gpt-api';
@@ -61,7 +61,7 @@ export function apply(ctx, config) {
 
   ctx.tools.register(defineTool({
     name: 'gpt_image',
-    description: 'Generate images with the configured GPT Image API. Returns newly saved local files in the current working directory under output/gpt-api. Present those paths to the user as images or deliverables. No existing file is overwritten. This is a billable API call; do not retry automatically after a timeout.',
+    description: 'Generate or edit images with the configured GPT Image API. Supply reference_images for reference-guided generation through images/edits; omit them for text-to-image generation. Returns newly saved local files in the current working directory under output/gpt-api. Present those paths to the user as images or deliverables. No existing file is overwritten. This is a billable API call; do not retry automatically after a timeout.',
     parameters: {
       prompt: { type: 'string', required: true, description: 'Detailed image prompt.' },
       model: { type: 'string', description: 'Optional GPT Image model override.' },
@@ -69,6 +69,7 @@ export function apply(ctx, config) {
       quality: { type: 'string', enum: ['auto', 'low', 'medium', 'high', 'xhigh', 'max'], description: 'Default auto. xhigh/max require a supporting model.' },
       output_format: { type: 'string', enum: ['png', 'jpeg', 'webp'], description: 'Default png.' },
       n: { type: 'integer', description: 'Number of images, 1–4; default 1.' },
+      reference_images: { type: 'array', items: { type: 'string' }, description: 'Explicit local PNG/JPEG/WebP paths within the session workspace, at most 10. Uploaded to images/edits as actual image inputs.' },
     },
     output: {
       schema: { type: 'json' },
@@ -91,7 +92,10 @@ export function apply(ctx, config) {
         }
       };
       await assertWrite();
-      const result = await (await client(exec)).image(args);
+      const policy = ctx.sandboxPolicy.resolve({ session: exec.agent.session });
+      const references = await loadReferenceImages(args.reference_images, cwd, policy.workspaceRoot ?? cwd, exec.signal);
+      exec.signal.throwIfAborted();
+      const result = await (await client(exec)).image(args, references);
       await assertWrite();
       const saved = await saveImages(cwd, result, exec.signal);
       const store = ctx.get('attachments');
