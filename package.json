@@ -11,7 +11,7 @@
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./locale/*.json": "./locale/*.json"
   },
-  "files": ["index.js", "api.js", "models-route.js", "client.js", "cordis.patch.yml", "locale", "README.md"],
+  "files": ["index.js", "api.js", "models-route.js", "client.js", "cordis.patch.yml", "locale", "README.md", "README.en.md"],
   "license": "MIT",
   "repository": {
     "type": "git",
