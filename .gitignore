@@ -1,5 +1,5 @@
 # Local dependencies and generated files
-node_modules/
+node_modules
 output/
 coverage/
 *.log
