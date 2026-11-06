@@ -1,0 +1,15 @@
+# Local dependencies and generated files
+node_modules/
+output/
+coverage/
+*.log
+.DS_Store
+
+# Credentials and local configuration
+.env
+.env.*
+.codex/
+.dsh/
+.credentials.yaml
+*.pem
+*.key

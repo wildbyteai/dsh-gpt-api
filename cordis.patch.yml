@@ -1,0 +1,3 @@
+- insert:
+    - id: gpt-api
+      name: dsh-gpt-api
