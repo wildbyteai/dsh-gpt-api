@@ -11,8 +11,8 @@ export const inject = ['tools', 'credentials', 'workingDirectory', 'sandboxPolic
 export const Config = z.object({
   baseURL: z.string().default('https://api.openai.com/v1').volatile(),
   apiKeyEnv: z.string().role('credential-ref').default('DSH_GPT_API_KEY').volatile(),
-  textModel: z.string().default('gpt-5.4').volatile(),
-  imageModel: z.string().default('gpt-image-2').volatile(),
+  textModel: z.string().default('gpt-6.1-sol').volatile(),
+  imageModel: z.string().default('gpt-image-2.6-flare').volatile(),
   textAPI: z.union(['responses', 'chat-completions']).default('responses').volatile(),
   timeoutMs: z.number().min(1000).max(600000).step(1).default(180000).volatile(),
 });

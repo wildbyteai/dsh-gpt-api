@@ -4,7 +4,7 @@ import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
-import { apply } from '../index.js';
+import { apply, Config } from '../index.js';
 
 const defaults = { baseURL: 'https://api.openai.com/v1', apiKeyEnv: 'DSH_GPT_API_KEY', textModel: 'test-gpt', imageModel: 'test-image', textAPI: 'responses', timeoutMs: 1000 };
 function mount(overrides = {}) {
@@ -24,6 +24,13 @@ function mount(overrides = {}) {
   return { tools, ctx, values };
 }
 const exec = () => ({ signal: new AbortController().signal, agent: { session: {} } });
+
+test('configured model defaults use GPT 6.1 Sol and GPT Image 2.6 Flare', () => {
+  assert.equal(Config.dict.textModel.meta.default, 'gpt-6.1-sol');
+  assert.equal(Config.dict.imageModel.meta.default, 'gpt-image-2.6-flare');
+  assert.equal(Config.dict.textModel.meta.volatile, true);
+  assert.equal(Config.dict.imageModel.meta.volatile, true);
+});
 
 test('native Host registers exactly three conversation tools', () => {
   const { tools } = mount();
